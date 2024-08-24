@@ -31,4 +31,8 @@ Screenshots:
 ===
 
 ![main](screenshot/main.png)
-![lookup](screenshot/lookup.png)
+![lookup](screenshot/lookup.0.2.png)
+![lookup](screenshot/lookup.0.2-1.png)
+
+older:
+![lookup](screenshot/lookup.0.1.png)
