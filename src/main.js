@@ -4,6 +4,10 @@ async function getContent() {
   return await invoke("get_content", {});
 }
 
+async function queryById(id) {
+  return await invoke("query_by_id", { id });
+}
+
 async function query(word) {
   return await invoke("definition", {
     word,
@@ -126,8 +130,9 @@ class MiniYT extends HTMLElement {
           if (res != "not found") {
             this._el.classList.add("nicebg");
             this._el.removeChild(this._elClose);
-            this._el.innerHTML = `<div style="background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
-            this._el.appendChild(this._elClose);
+            this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
+            this._el.insertBefore(this._elClose, this._el.firstChild);
+            
 
             this._el.style.top = e.y + "px";
             this._el.style.left = e.x + "px";
@@ -136,8 +141,9 @@ class MiniYT extends HTMLElement {
             query(getWordAtPoint(e.target, e.x, e.y, true)).then((res) => {
               if (res === "not found") return;
               this._el.removeChild(this._elClose);
-              this._el.innerHTML = this._cleanup(res);
-              this._el.appendChild(this._elClose);
+              this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
+              this._el.insertBefore(this._elClose, this._el.firstChild);
+              
               this._el.style.top = e.y + "px";
               this._el.style.left = e.x + "px";
               this._el.style.display = "block";
@@ -150,18 +156,55 @@ class MiniYT extends HTMLElement {
 
   connectedCallback() {
     this._el = document.createElement("div");
+    this._el.draggable = true;
+    let bcr = null;
+    this._el.ondragstart = (e) => {
+      e.dataTransfer.dropEffect = "move";
+      e.dataTransfer.effectAllowed = "move";
+      let img = new Image(0, 0);
+      img.src =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+      e.dataTransfer.setDragImage(img, 0, 0);
+
+      bcr = this._el.getBoundingClientRect();
+    };
+    
+    this._el.ondrag = (e) => {
+      this._el.style.top = -40 + e.pageY + "px";
+      this._el.style.left = -40 + e.pageX + "px";
+    };
+    this._el.onclick = (e) => {
+      if (e.target.tagName && e.target.tagName === "A") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.target.href.startsWith("entry://")) {
+          queryById(e.target.dataset.targetId).then((res) => {
+            if (res !== "not found") {
+              this._el.removeChild(this._elClose);
+              this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
+              this._el.insertBefore(this._elClose, this._el.firstChild);
+            }
+          });
+        }
+        if (e.target.href.startsWith("sound://")) {
+          // TODO: play sound via rust.
+        }
+      }
+    };
     this._elClose = document.createElement("div");
     this._elClose.innerText = "x";
     this._elClose.style =
-      "font-variant: small-caps; line-height:0.7;text-align: center;background-color:lightsteelblue; border: 1px solid steelblue; position:absolute; top:1.5em; right: 1.5em; cursor: pointer; width: 1em; height: 1em;border-radius:0.1em;";
-    this._elClose.onclick = () => {
+      "font-variant: small-caps; line-height:0.7;text-align: center;background-color:lightsteelblue; border: 1px solid steelblue; position:sticky; top:1.5em; right: 1.5em; cursor: pointer; width: 1em; height: 1em;border-radius:0.1em;float:right";
+    this._elClose.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       this._el.style.display = "none";
     };
     this._el.style =
-      "margin:1em; padding: 1em;position: absolute; background-color: white; border:5px solid lightsteelblue; min-width: 30em;display: none; position:'absolute'; top:-1000px;left:-1000px; border-radius: 0.3em;";
+      "max-height: 35vh; overflow: auto; margin:1em; padding: 1em;position: absolute; background-color: white; border:5px solid lightsteelblue; min-width: 30em;display: none; position:'absolute'; top:-1000px;left:-1000px; border-radius: 0.3em;";
 
     document.body.appendChild(this._el);
-    this._el.appendChild(this._elClose);
+    this._el.insertBefore(this._elClose, this._el.firstChild);
     window.addEventListener("mousemove", this._onmousemove);
   }
   disconnectedCallback() {
@@ -263,7 +306,6 @@ const colorize = (text) =>
     )
     // for now let's open in the default browser.
     .replace(/<a\ /g, '<a target="_blank"');
-//.replace(/\./g, "。<br><br>");
 
 window.addEventListener("DOMContentLoaded", () => {
   const container = document.querySelector("#container");

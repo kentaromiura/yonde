@@ -6,7 +6,7 @@
   },
   "package": {
     "productName": "sakubi-reader-app",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "tauri": {
     "allowlist": {
@@ -27,7 +27,11 @@
       "csp": null
     },
     "bundle": {
-      "resources": ["src/sakubi.html", "src/jitendex.mdx.db"],
+      "resources": [
+        "src/sakubi.html",
+        "src/jitindex.dict",
+        "src/jitendex.comp.db"
+      ],
       "active": true,
       "targets": "all",
       "identifier": "com.sakubi-reader-app.app",
