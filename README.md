@@ -6,6 +6,14 @@ include an embedded [jitendex](https://jitendex.org/) dictionary that can be ena
 
 Changelogs:
 ===
+version 0.3.0
+
+Using [rodio](https://github.com/RustAudio/rodio) and [magnum](https://github.com/seratonik/magnum-rs) to play sound in dictionary;
+Fix other missing assets (svgs)
+Implement a global lookup function
+
+
+
 version 0.2.0
 ===
 since this version the db is exported using https://github.com/kentaromiura/jitendex-analysis,
@@ -22,10 +30,9 @@ MiniYT definitions has been styled using Jitendex style
 
 TODO:
 ===
-Audio streaming inside definitions and other assets needs to be included...
-Initial works was done but need to be rework because safari don't support opus but also seems
-in tauri music streaming is also broken atm.
-probably will be implemented using [https://github.com/RustAudio/rodio](rodio) on native side.
+
+add a menu to make `lookup` easy to access it w/out devTools
+maybe zoom button+animation for the MiniYT to show it 95vw/95vh
 
 Screenshots:
 ===
