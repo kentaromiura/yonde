@@ -380,6 +380,10 @@ kenta-single-page-view > section.visible > * {
 }
 
 video,
-img {
+image {
     display: none;
+}
+
+[draggable] image {
+    display: inline;
 }

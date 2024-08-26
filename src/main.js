@@ -14,6 +14,12 @@ async function query(word) {
   });
 }
 
+async function playAudio(audioId) {
+  return await invoke("play_audio", {
+    word: audioId,
+  });
+}
+
 // based on https://stackoverflow.com/q/49758168
 // as tauri osx webview don't support range.expand("word")
 function expandRangeWord(node, range) {
@@ -116,9 +122,31 @@ function getWordAtPoint(elem, x, y, notExpand) {
 }
 
 class MiniYT extends HTMLElement {
+  _parentALink = (el) => {
+    let next = el.parentElement;
+    while (next) {
+      console.log(next);
+      if (next.tagName === "A") return next;
+      next = next.parentElement;
+      if (next === document.body) return null;
+    }
+  };
   _cleanup = (html) => {
     return html
       .replace(/link/g, "custom-link")
+      .replace(
+        /svg\/accent\.svg/g,
+        `data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcKICAgdmlld0JveD0iMCAwIDMwMCAzMDAiCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZzEiCiAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZnMKICAgICBpZD0iZGVmczEiIC8+CiAgPHBhdGgKICAgICBkPSJNIDk5LjMxNjQwNiw1NC4xNjQwNjIgViAzMy4wNzAzMTIgSCAxOTQuNTMxMjUgViAxMzMuNDEyMTEgSCAxNzMuNDM3NSBWIDU0LjE2NDA2MiBaIgogICAgIGlkPSJ0ZXh0MSIKICAgICBzdHlsZT0iZm9udC1zaXplOjMwMHB4O2ZvbnQtZmFtaWx5OidTb3VyY2UgSGFuIFNhbnMgSlAgTWVkaXVtJywgc2Fucy1zZXJpZjt0ZXh0LWFuY2hvcjptaWRkbGU7ZmlsbDojZGMxNDNjIgogICAgIGFyaWEtbGFiZWw9IuKMnSIgLz4KPC9zdmc+Cg==`,
+      )
+      .replace(
+        /svg\/heiban\.svg/g,
+        `data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjxzdmcKICAgdmlld0JveD0iMCAwIDMwMCAzMDAiCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZzEiCiAgIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICAgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZnMKICAgICBpZD0iZGVmczEiIC8+CiAgPHBhdGgKICAgICBkPSJNIDIzOS45OTk5NCwyMSBIIDU5Ljk5OTk0MyBWIDQ1IEggMjM5Ljk5OTk0IFoiCiAgICAgaWQ9InRleHQxIgogICAgIHN0eWxlPSJmb250LXNpemU6MzAwcHg7Zm9udC1mYW1pbHk6J1NvdXJjZSBIYW4gU2FucyBKUCBNZWRpdW0nLCBzYW5zLXNlcmlmO3RleHQtYW5jaG9yOm1pZGRsZTtmaWxsOiNkYzE0M2MiCiAgICAgYXJpYS1sYWJlbD0i4o66IiAvPgo8L3N2Zz4K`,
+      )
+      .replace(/src=\"HanaMinA\/(.*?\.svg)/g, (x, id, ...rest) => {
+        console.log("replace :", x, id, rest);
+        let replacement = window.HanaMinA[id];
+        return x.replace(x, `src="${replacement}`);
+      })
       .replace(/<a /, '<a target="_blank"');
   };
   _onmousemove = (e) => {
@@ -126,34 +154,35 @@ class MiniYT extends HTMLElement {
       let word = getWordAtPoint(e.target, e.x, e.y);
       word = word || getWordAtPoint(e.target, e.x, e.y, true);
       if (word) {
-        query(word).then((res) => {
-          if (res != "not found") {
-            this._el.classList.add("nicebg");
-            this._el.removeChild(this._elClose);
-            this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
-            this._el.insertBefore(this._elClose, this._el.firstChild);
-            
-
-            this._el.style.top = e.y + "px";
-            this._el.style.left = e.x + "px";
-            this._el.style.display = "block";
-          } else {
-            query(getWordAtPoint(e.target, e.x, e.y, true)).then((res) => {
-              if (res === "not found") return;
-              this._el.removeChild(this._elClose);
-              this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
-              this._el.insertBefore(this._elClose, this._el.firstChild);
-              
-              this._el.style.top = e.y + "px";
-              this._el.style.left = e.x + "px";
-              this._el.style.display = "block";
-            });
-          }
-        });
+        this._search(word, e.y, e.x);
       }
     }
   };
+  _search(word, y, x) {
+    query(word).then((res) => {
+      if (res != "not found") {
+        this._el.classList.add("nicebg");
+        this._el.removeChild(this._elClose);
+        this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
+        this._el.insertBefore(this._elClose, this._el.firstChild);
 
+        this._el.style.top = y + "px";
+        this._el.style.left = x + "px";
+        this._el.style.display = "block";
+      } else {
+        query(getWordAtPoint(e.target, e.x, e.y, true)).then((res) => {
+          if (res === "not found") return;
+          this._el.removeChild(this._elClose);
+          this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
+          this._el.insertBefore(this._elClose, this._el.firstChild);
+
+          this._el.style.top = y + "px";
+          this._el.style.left = x + "px";
+          this._el.style.display = "block";
+        });
+      }
+    });
+  }
   connectedCallback() {
     this._el = document.createElement("div");
     this._el.draggable = true;
@@ -168,13 +197,30 @@ class MiniYT extends HTMLElement {
 
       bcr = this._el.getBoundingClientRect();
     };
-    
+
     this._el.ondrag = (e) => {
       this._el.style.top = -40 + e.pageY + "px";
       this._el.style.left = -40 + e.pageX + "px";
     };
     this._el.onclick = (e) => {
+      if (e.target.tagName && e.target.tagName !== "A") {
+        let node = this._parentALink(e.target);
+        if (node) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (node.href.startsWith("sound://")) {
+            // f&f
+            playAudio(
+              node.href
+                .replace("sound://kanji_alive_audio/", "")
+                .replace(".opus", ""),
+            );
+          }
+        }
+        return false;
+      }
       if (e.target.tagName && e.target.tagName === "A") {
+        console.log("onClick", e.target.href);
         e.preventDefault();
         e.stopPropagation();
         if (e.target.href.startsWith("entry://")) {
@@ -187,7 +233,12 @@ class MiniYT extends HTMLElement {
           });
         }
         if (e.target.href.startsWith("sound://")) {
-          // TODO: play sound via rust.
+          // fire and forget.
+          playAudio(
+            e.target.href
+              .replace("sound://kanji_alive_audio/", "")
+              .replace(".opus", ""),
+          );
         }
       }
     };
@@ -206,6 +257,7 @@ class MiniYT extends HTMLElement {
     document.body.appendChild(this._el);
     this._el.insertBefore(this._elClose, this._el.firstChild);
     window.addEventListener("mousemove", this._onmousemove);
+    window.lookup = (word) => this._search(word, 0, 0);
   }
   disconnectedCallback() {
     window.addEventListener("mousemove", this._onmousemove);

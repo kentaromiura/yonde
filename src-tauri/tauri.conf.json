@@ -30,7 +30,9 @@
       "resources": [
         "src/sakubi.html",
         "src/jitindex.dict",
-        "src/jitendex.comp.db"
+        "src/jitendex.comp.db",
+        "src/jitindex.audio.dict",
+        "src/jitendex.audio.db"
       ],
       "active": true,
       "targets": "all",

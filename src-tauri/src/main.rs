@@ -1,5 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use magnum::container::ogg::OpusSourceOgg;
+use rodio::{OutputStream, Sink, Source};
+
 use rusqlite::{named_params, Connection};
 use std::fs::File;
 use std::{fmt::Write, num::ParseIntError};
@@ -11,6 +14,51 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
         .collect()
 }
+
+// db generated same as for definition.
+#[tauri::command]
+fn play_audio(handle: tauri::AppHandle, word: String) -> String {
+    let db_path = handle
+        .path_resolver()
+        .resolve_resource("src/jitendex.audio.db")
+        .expect("failed to resolve resource.");
+    let path_dictionary = handle
+        .path_resolver()
+        .resolve_resource("src/jitindex.audio.dict")
+        .expect("failed to resolve resource.");
+    let mut dictionary = Vec::new();
+    let mut f = File::open(path_dictionary.clone()).unwrap();
+    let _ = f.read_to_end(&mut dictionary);
+
+    let conn = Connection::open(&db_path).unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT hex(data)
+            FROM audio
+            where id = :word;",
+        )
+        .unwrap();
+    let mut row = stmt.query(named_params! {":word": word}).unwrap();
+    if let Some(row) = row.next().unwrap() {
+        let (_stream, stream_handle) = rodio::OutputStream::try_default().unwrap();
+        let sink = rodio::Sink::try_new(&stream_handle).unwrap();
+        let hexstr = row.get::<usize, String>(0).unwrap();
+
+        let compressed = decode_hex(&hexstr).unwrap();
+        let reader = std::io::BufReader::new(compressed.as_slice());
+        let mut decoder = zstd::Decoder::with_dictionary(reader, &dictionary).unwrap();
+        let mut buf = Vec::new();
+        let _ = decoder.read_to_end(&mut buf);
+
+        let buf_reader = std::io::BufReader::new(std::io::Cursor::new(buf));
+        let source = OpusSourceOgg::new(buf_reader).unwrap();
+        // using sink to sleep to end.
+        sink.append(source);
+        sink.sleep_until_end();
+    }
+    "".to_string()
+}
+
 // definition comes from https://jitendex.org/pages/downloads.html ( https://creativecommons.org/licenses/by-sa/4.0/)
 // MDict db and zstd dictionary has been generated using https://github.com/kentaromiura/jitendex-analysis (GPL 3.0)
 // data is CC 4.0 as per above.
@@ -33,7 +81,6 @@ fn definition(handle: tauri::AppHandle, word: String) -> String {
 
     return def;
 }
-
 
 pub fn query_internal(word: String, path_db: PathBuf, path_dictionary: PathBuf) -> String {
     let w = word;
@@ -128,7 +175,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_content,
             definition,
-            query_by_id
+            query_by_id,
+            play_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
