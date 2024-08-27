@@ -1,12 +1,13 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use magnum::container::ogg::OpusSourceOgg;
-use rodio::{OutputStream, Sink, Source};
 
 use rusqlite::{named_params, Connection};
 use std::fs::File;
-use std::{fmt::Write, num::ParseIntError};
+use std::num::ParseIntError;
 use std::{fs, io::Read, path::PathBuf};
+
+use tauri::{CustomMenuItem, Menu, Submenu};
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
@@ -73,7 +74,7 @@ fn definition(handle: tauri::AppHandle, word: String) -> String {
         .resolve_resource("src/jitindex.dict")
         .expect("failed to resolve resource.");
 
-    let mut def = query_internal(
+    let def = query_internal(
         word.trim().to_string(),
         db_path.clone(),
         path_dictionary.clone(),
@@ -86,7 +87,7 @@ pub fn query_internal(word: String, path_db: PathBuf, path_dictionary: PathBuf) 
     let w = word;
     let mut dictionary = Vec::new();
     let mut f = File::open(path_dictionary.clone()).unwrap();
-    f.read_to_end(&mut dictionary);
+    let _ = f.read_to_end(&mut dictionary);
     let conn = Connection::open(&path_db).unwrap();
     let mut stmt = conn
         .prepare(
@@ -106,7 +107,7 @@ pub fn query_internal(word: String, path_db: PathBuf, path_dictionary: PathBuf) 
         let def = decode_hex(&hexstr).unwrap();
         let reader = std::io::BufReader::new(def.as_slice());
         let mut decoder = zstd::Decoder::with_dictionary(reader, &dictionary).unwrap();
-        decoder.read_to_end(&mut buf);
+        let _ = decoder.read_to_end(&mut buf);
         result.push_str(&String::from_utf8(buf).unwrap());
     }
     if result.len() > 0 {
@@ -128,7 +129,7 @@ fn query_by_id(handle: tauri::AppHandle, id: String) -> String {
         .expect("failed to resolve resource.");
     let mut dictionary = Vec::new();
     let mut f = File::open(path_dictionary.clone()).unwrap();
-    f.read_to_end(&mut dictionary);
+    let _ = f.read_to_end(&mut dictionary);
     let conn = Connection::open(&db_path).unwrap();
     let mut stmt = conn
         .prepare(
@@ -147,7 +148,7 @@ fn query_by_id(handle: tauri::AppHandle, id: String) -> String {
         let def = decode_hex(&hexstr).unwrap();
         let reader = std::io::BufReader::new(def.as_slice());
         let mut decoder = zstd::Decoder::with_dictionary(reader, &dictionary).unwrap();
-        decoder.read_to_end(&mut buf);
+        let _ = decoder.read_to_end(&mut buf);
         result.push_str(&String::from_utf8(buf).unwrap());
     }
     if result.len() > 0 {
@@ -171,7 +172,20 @@ fn get_content(handle: tauri::AppHandle) -> String {
 }
 
 fn main() {
+    let submenu = Submenu::new(
+        "Actions",
+        Menu::new().add_item(CustomMenuItem::new("lookup", "lookup")),
+    );
+    let menu = Menu::os_default("Sakubi Reader").add_submenu(submenu);
+
     tauri::Builder::default()
+        .menu(menu)
+        .on_menu_event(|event| match event.menu_item_id() {
+            "lookup" => {
+                let _ = event.window().emit("lookup", ()).unwrap();
+            }
+            _ => {}
+        })
         .invoke_handler(tauri::generate_handler![
             get_content,
             definition,

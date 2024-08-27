@@ -4,6 +4,42 @@ async function getContent() {
   return await invoke("get_content", {});
 }
 
+const _unlisten = window.__TAURI__.event.listen("lookup", () => {
+  if (document.querySelector("[data-id=lookup]")) {
+    return;
+  }
+  let div = document.createElement("div");
+  div.dataset.id = "lookup";
+  div.innerHTML = `<input type="text"></input><button>Search</button><button>Close</button>`;
+  document.documentElement.appendChild(div);
+  div.style.position = "absolute";
+  div.style.top = 0;
+  div.style.left = 0;
+  div.style.zIndex = 1;
+  div.style.backgroundColor = "white";
+  div.style.width = "100vw";
+  div.style.borderBottom = "1px solid silver";
+  div.style.boxShadow = "0 10px 10px lightsteelblue";
+  div.style.padding = "1em";
+  document.body.appendChild(div);
+  const buttons = div.querySelectorAll("button");
+  div.firstChild.onkeydown = (e) => {
+    console.log(e);
+    if (e.key === "Enter") {
+      window.lookup(div.firstChild.value);
+      document.body.removeChild(div);
+    }
+  };
+
+  buttons[0].onclick = () => {
+    window.lookup(div.firstChild.value);
+    document.body.removeChild(div);
+  };
+  buttons[1].onclick = () => {
+    document.body.removeChild(div);
+  };
+});
+
 async function queryById(id) {
   return await invoke("query_by_id", { id });
 }
@@ -122,6 +158,9 @@ function getWordAtPoint(elem, x, y, notExpand) {
 }
 
 class MiniYT extends HTMLElement {
+  _animateZoom = () => {
+    this._el.classList.add("zoomed");
+  };
   _parentALink = (el) => {
     let next = el.parentElement;
     while (next) {
@@ -163,8 +202,10 @@ class MiniYT extends HTMLElement {
       if (res != "not found") {
         this._el.classList.add("nicebg");
         this._el.removeChild(this._elClose);
+        this._el.removeChild(this._elZoom);
         this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
         this._el.insertBefore(this._elClose, this._el.firstChild);
+        this._el.insertBefore(this._elZoom, this._el.firstChild);
 
         this._el.style.top = y + "px";
         this._el.style.left = x + "px";
@@ -173,8 +214,10 @@ class MiniYT extends HTMLElement {
         query(getWordAtPoint(e.target, e.x, e.y, true)).then((res) => {
           if (res === "not found") return;
           this._el.removeChild(this._elClose);
+          this._el.removeChild(this._elZoom);
           this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
           this._el.insertBefore(this._elClose, this._el.firstChild);
+          this._el.insertBefore(this._elZoom, this._el.firstChild);
 
           this._el.style.top = y + "px";
           this._el.style.left = x + "px";
@@ -227,8 +270,10 @@ class MiniYT extends HTMLElement {
           queryById(e.target.dataset.targetId).then((res) => {
             if (res !== "not found") {
               this._el.removeChild(this._elClose);
+              this._el.removeChild(this._elZoom);
               this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
               this._el.insertBefore(this._elClose, this._el.firstChild);
+              this._el.insertBefore(this._elZoom, this._el.firstChild);
             }
           });
         }
@@ -242,6 +287,26 @@ class MiniYT extends HTMLElement {
         }
       }
     };
+    this._elZoom = document.createElement("div");
+    this._elZoom.innerText = "^";
+    this._elZoom.style =
+      "font-variant: small-caps; line-height:1;text-align: center;background-color:lightsteelblue; border: 1px solid steelblue; position:sticky; top:1.5em; right: 3.0em; cursor: pointer; width: 1em; height: 1em;border-radius:0.1em;float:right";
+    this._elZoom.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (this._elZoom.innerText === "^") {
+        this._el.classList.add("zoomed");
+        this._el.classList.remove("reversed");
+        this._elZoom.innerText = "_";
+        this._elZoom.style.lineHeight = 0.7;
+      } else {
+        this._el.classList.add("reversed");
+
+        this._elZoom.innerText = "^";
+        this._elZoom.style.lineHeight = 1;
+      }
+    };
+
     this._elClose = document.createElement("div");
     this._elClose.innerText = "x";
     this._elClose.style =
@@ -249,15 +314,25 @@ class MiniYT extends HTMLElement {
     this._elClose.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      this._el.classList.remove("zoomed");
+      this._el.classList.remove("reversed");
       this._el.style.display = "none";
+      this._elZoom.innerText = "^";
+      this._elZoom.style.lineHeight = 1;
     };
     this._el.style =
       "max-height: 35vh; overflow: auto; margin:1em; padding: 1em;position: absolute; background-color: white; border:5px solid lightsteelblue; min-width: 30em;display: none; position:'absolute'; top:-1000px;left:-1000px; border-radius: 0.3em;";
 
     document.body.appendChild(this._el);
     this._el.insertBefore(this._elClose, this._el.firstChild);
+    this._el.insertBefore(this._elZoom, this._el.firstChild);
     window.addEventListener("mousemove", this._onmousemove);
-    window.lookup = (word) => this._search(word, 0, 0);
+    window.lookup = (word) => {
+      this._search(word, 0, 0);
+      this._animateZoom();
+      this._elZoom.innerText = "_";
+      this._elZoom.style.lineHeight = 0.7;
+    };
   }
   disconnectedCallback() {
     window.addEventListener("mousemove", this._onmousemove);

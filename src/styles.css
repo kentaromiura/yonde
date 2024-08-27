@@ -387,3 +387,41 @@ image {
 [draggable] image {
     display: inline;
 }
+
+@keyframes enbigger {
+    from {
+        width: 35vw;
+        max-height: 35vh;
+        height: 35vh;
+    }
+    to {
+        top: 0;
+        left: 0;
+        width: 90vw;
+        max-height: 90vh;
+        height: 90vh;
+    }
+}
+
+@keyframes ensmaller {
+    from {
+        width: 35vw;
+        max-height: 35vh;
+        height: 35vh;
+    }
+    to {
+        top: 0;
+        left: 0;
+        width: 90vw;
+        max-height: 90vh;
+        height: 90vh;
+    }
+}
+
+.zoomed.reversed {
+    animation: ensmaller 0.3s ease-in reverse backwards running;
+}
+
+.zoomed {
+    animation: 300ms ease-out normal forwards running enbigger;
+}
