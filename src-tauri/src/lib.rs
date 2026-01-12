@@ -11,6 +11,8 @@ use std::num::ParseIntError;
 use std::{any::Any, fs::File};
 use std::{fs, io::Read, path::PathBuf};
 
+const MENU_EVENT_LOOKUP: &str = "lookup";
+
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
         .step_by(2)
@@ -192,14 +194,14 @@ pub fn run() {
                     &[
                         &PredefinedMenuItem::close_window(handle, None)?,
                         #[cfg(target_os = "macos")]
-                        &MenuItem::new(handle, "lookup", true, None::<&str>)?,
+                        &MenuItemBuilder::new(MENU_EVENT_LOOKUP).id("lookup").build(handle)?,
                     ],
                 )?],
             )
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "2" => {
-                let _ = app.emit("lookup", ());
+            MENU_EVENT_LOOKUP=> {
+                let _ = app.emit(MENU_EVENT_LOOKUP, ());
             }
             _ => {
                 println!("no matches. {}", event.id().as_ref())
