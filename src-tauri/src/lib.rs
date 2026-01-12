@@ -1,14 +1,14 @@
 use magnum::container::ogg::OpusSourceOgg;
 use tauri::{
-    Emitter, Manager, Resource,
+    Emitter, Manager,
     menu::{
-        Menu, MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder,
+        Menu, MenuItemBuilder, PredefinedMenuItem, Submenu,
     },
 };
 
 use rusqlite::{Connection, named_params};
 use std::num::ParseIntError;
-use std::{any::Any, fs::File};
+use std::fs::File;
 use std::{fs, io::Read, path::PathBuf};
 
 const MENU_EVENT_LOOKUP: &str = "lookup";
