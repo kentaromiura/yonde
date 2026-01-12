@@ -7,7 +7,8 @@ Includes an embedded [jitendex](https://jitendex.org/) dictionary that can be en
 
 Changelogs:
 ===
-
+version 0.5.0
+migrated to Tauri V2
 
 version 0.4.0
 ===

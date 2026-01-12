@@ -179,7 +179,8 @@ kenta-single-page-view {
 }
 
 .nicebg {
-    background-image: radial-gradient(
+    background-image:
+        radial-gradient(
             circle at 100% 150%,
             silver 24%,
             steelblue 24%,
@@ -266,7 +267,8 @@ html {
 
     overflow: hidden;
     background-color: lightsteelblue;
-    background-image: radial-gradient(
+    background-image:
+        radial-gradient(
             circle at 100% 150%,
             silver 24%,
             steelblue 24%,
