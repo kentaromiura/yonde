@@ -1,4 +1,4 @@
-const { invoke } = window.__TAURI__.tauri;
+const { invoke } = window.__TAURI__.core;
 
 async function getContent() {
   return await invoke("get_content", {});
@@ -229,7 +229,6 @@ class MiniYT extends HTMLElement {
   connectedCallback() {
     this._el = document.createElement("div");
     this._el.draggable = true;
-    let bcr = null;
     this._el.ondragstart = (e) => {
       e.dataTransfer.dropEffect = "move";
       e.dataTransfer.effectAllowed = "move";
@@ -237,10 +236,7 @@ class MiniYT extends HTMLElement {
       img.src =
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
       e.dataTransfer.setDragImage(img, 0, 0);
-
-      bcr = this._el.getBoundingClientRect();
     };
-
     this._el.ondrag = (e) => {
       this._el.style.top = -40 + e.pageY + "px";
       this._el.style.left = -40 + e.pageX + "px";
