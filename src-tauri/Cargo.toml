@@ -1,6 +1,6 @@
 [package]
-name = "sakubi-reader-app"
-version = "1.0.0"
+name = "mokuro-app"
+version = "0.0.1"
 description = "Native sakubi reader with integrated dictionary"
 authors = ["Cristian Carlesso (@kentaromiura)"]
 edition = "2024"
@@ -11,7 +11,7 @@ edition = "2024"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "sakubi_reader_app_lib"
+name = "mokuro_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

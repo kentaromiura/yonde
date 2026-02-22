@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "sakubi-reader-app",
-  "version": "0.5.0",
-  "identifier": "com.sakubi-reader-app.app",
+  "productName": "mokuro-app",
+  "version": "0.0.1",
+  "identifier": "com.mokuro-app.app",
   "build": {
     "frontendDist": "../src"
   },
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Sakubi Reader",
+        "title": "Mokuro app",
         "width": 800,
         "height": 600,
         "dragDropEnabled": false

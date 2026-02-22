@@ -2334,6 +2334,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mokuro-app"
+version = "0.0.1"
+dependencies = [
+ "magnum",
+ "rodio",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "zstd",
+]
+
+[[package]]
 name = "muda"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3498,21 +3513,6 @@ name = "ryu"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a50f4cf475b65d88e057964e0e9bb1f0aa9bbb2036dc65c64596b42932536984"
-
-[[package]]
-name = "sakubi-reader-app"
-version = "1.0.0"
-dependencies = [
- "magnum",
- "rodio",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "zstd",
-]
 
 [[package]]
 name = "same-file"
