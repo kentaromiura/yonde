@@ -213,6 +213,7 @@
         <script src="components/reader-indicator.js" type="module"></script>
         <script src="components/reader-toolbar.js" type="module"></script>
         <script src="components/theme-picker.js" type="module"></script>
+        <script src="components/reader-container.js" type="module"></script>
         <!-- UI -->
         <script type="module" src="/main.js" defer></script>
         <style data-id="common">
@@ -762,6 +763,7 @@
                     slot="start"
                     id="indicator"
                 ></reader-indicator>
+                <button id="ocrBtn" slot="end" title="Toggle OCR">OCR</button>
                 <div class="fit-controls" slot="end">
                     <button class="fit-btn active" data-fit="contain">
                         Fit
@@ -785,6 +787,14 @@
         </div>
 
         <script type="module">
+            console.log(
+                "[App] Script starting, Tauri available:",
+                !!window.__TAURI__,
+            );
+
+            const { invoke } = window.__TAURI__.core;
+            console.log("[App] invoke function obtained");
+
             const viewer = document.getElementById("viewer");
             const dropzone = document.getElementById("dropzone");
             const dropzoneContainer =
@@ -792,91 +802,133 @@
             const nav = document.getElementById("nav");
             const indicator = document.getElementById("indicator");
             const fitButtons = document.querySelectorAll(".fit-btn");
-            const demoHint = document.getElementById("demoHint");
 
+            console.log("[App] Elements:", {
+                viewer,
+                dropzone,
+                dropzoneContainer,
+                nav,
+                indicator,
+            });
+
+            let currentPath = null;
             let pages = [];
             let currentIndex = 0;
+            let ocrEnabled = false;
+            let ocrInitialized = false;
 
-            function generateDemoPages() {
-                const colors = [
-                    "#e74c3c",
-                    "#3498db",
-                    "#2ecc71",
-                    "#f39c12",
-                    "#9b59b6",
-                ];
-                return colors.map((color, i) => {
-                    const canvas = document.createElement("canvas");
-                    canvas.width = 800;
-                    canvas.height = 1200;
-                    const ctx = canvas.getContext("2d");
-
-                    ctx.fillStyle = color;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                    ctx.fillStyle = "rgba(255,255,255,0.9)";
-                    ctx.font = "bold 72px sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.fillText(
-                        `Page ${i + 1}`,
-                        canvas.width / 2,
-                        canvas.height / 2,
-                    );
-
-                    ctx.fillStyle = "rgba(0,0,0,0.5)";
-                    ctx.font = "24px sans-serif";
-                    ctx.fillText(
-                        `← Next (manga mode)`,
-                        canvas.width / 2,
-                        canvas.height / 2 + 80,
-                    );
-
-                    return {
-                        src: canvas.toDataURL("image/png"),
-                        width: 800,
-                        height: 1200,
-                    };
-                });
+            async function openCbz(path) {
+                console.log("[App] openCbz called with path:", path);
+                try {
+                    console.log("[App] Invoking open_cbz...");
+                    pages = await invoke("open_cbz", { path });
+                    pages.sort();
+                    console.log("[App] open_cbz returned pages:", pages);
+                    currentPath = path;
+                    currentIndex = 0;
+                    dropzoneContainer.classList.remove("visible");
+                    console.log("[App] Loading first page...");
+                    await loadPage(0);
+                } catch (err) {
+                    console.error("[App] Failed to open CBZ:", err);
+                    alert("Failed to open CBZ: " + err);
+                }
             }
 
-            function startDemo() {
-                pages = generateDemoPages();
-                currentIndex = 0;
-                updateViewer();
-                dropzoneContainer.classList.remove("visible");
-                demoHint.style.display = "block";
+            async function loadPage(index) {
+                console.log("[App] loadPage called with index:", index);
+                if (index < 0 || index >= pages.length) {
+                    console.log("[App] Index out of bounds");
+                    return;
+                }
+
+                currentIndex = index;
+                const pageName = pages[index];
+                console.log("[App] Loading page:", pageName);
+
+                try {
+                    let result;
+                    if (ocrEnabled && ocrInitialized) {
+                        console.log("[App] Fetching page with OCR...");
+                        result = await invoke("get_page_with_ocr", {
+                            path: currentPath,
+                            pageName,
+                        });
+                    } else {
+                        console.log("[App] Fetching page without OCR...");
+                        result = await invoke("get_page", {
+                            path: currentPath,
+                            pageName,
+                        });
+                    }
+                    console.log(
+                        "[App] Page result:",
+                        result.mime_type,
+                        result.width,
+                        "x",
+                        result.height,
+                    );
+
+                    const dataUrl = `data:${result.mime_type};base64,${result.image}`;
+                    viewer.setImage(dataUrl, result.width, result.height);
+
+                    viewer.clearOverlays();
+                    if (result.ocr_results && result.ocr_results.length > 0) {
+                        console.log("[App] Adding", result.ocr_results.length, "OCR overlays");
+                        for (const ocr of result.ocr_results) {
+                            const [x1, y1, x2, y2] = ocr.bbox;
+                            viewer.addOverlay(x1, y1, x2 - x1, y2 - y1, ocr.text, {
+                                type: "ocr",
+                            });
+                        }
+                    } else if (ocrEnabled && ocrInitialized) {
+                        console.log("[App] No OCR results found");
+                    }
+
+                    indicator.current = currentIndex + 1;
+                    indicator.total = pages.length;
+
+                    nav.hasPrev = currentIndex > 0;
+                    nav.hasNext = currentIndex < pages.length - 1;
+                } catch (err) {
+                    console.error("Failed to load page:", err);
+                }
+            }
+
+            async function initOcr() {
+                console.log("[App] initOcr called, ocrInitialized:", ocrInitialized);
+                if (ocrInitialized) return;
+                try {
+                    console.log("[App] Invoking init_ocr...");
+                    await invoke("init_ocr");
+                    ocrInitialized = true;
+                    ocrEnabled = true;
+                    console.log("[App] OCR initialized successfully");
+                } catch (err) {
+                    console.error("[App] Failed to initialize OCR:", err);
+                    throw err;
+                }
             }
 
             dropzone.addEventListener("file-selected", async (e) => {
-                const file = e.detail.file;
-                console.log("File selected:", file.name);
-                startDemo();
-            });
-
-            nav.addEventListener("navigate", (e) => {
-                if (e.detail.direction === "prev" && nav.hasPrev) {
-                    currentIndex--;
-                    updateViewer();
-                } else if (e.detail.direction === "next" && nav.hasNext) {
-                    currentIndex++;
-                    updateViewer();
+                console.log("[App] file-selected event:", e.detail);
+                const { path } = e.detail;
+                if (path) {
+                    console.log("[App] Calling openCbz with path:", path);
+                    await openCbz(path);
+                } else {
+                    console.log("[App] No path in event detail");
                 }
             });
 
-            function updateViewer() {
-                if (pages.length === 0) return;
-
-                const page = pages[currentIndex];
-                viewer.setImage(page.src, page.width, page.height);
-
-                indicator.current = currentIndex + 1;
-                indicator.total = pages.length;
-
-                nav.hasPrev = currentIndex > 0;
-                nav.hasNext = currentIndex < pages.length - 1;
-
-                viewer.clearOverlays();
-            }
+            nav.addEventListener("navigate", (e) => {
+                const dir = e.detail.direction;
+                if (dir === "prev" && nav.hasPrev) {
+                    loadPage(currentIndex - 1);
+                } else if (dir === "next" && nav.hasNext) {
+                    loadPage(currentIndex + 1);
+                }
+            });
 
             fitButtons.forEach((btn) => {
                 btn.addEventListener("click", () => {
@@ -885,19 +937,48 @@
                     viewer.fitMode = btn.dataset.fit;
                 });
             });
+            
+            const ocrBtn = document.getElementById("ocrBtn");
+            ocrBtn.style.cssText = "padding: 0.4em 0.8em; border-radius: 6px; border: 1px solid var(--border, #3a3a3a); background: var(--bg-elevated, #252525); color: var(--fg, #e8e8e8); cursor: pointer;";
+            
+            ocrBtn.addEventListener("click", async () => {
+                if (!ocrInitialized) {
+                    ocrBtn.disabled = true;
+                    ocrBtn.textContent = "Loading...";
+                    ocrBtn.style.opacity = "0.6";
+                    console.log("[App] Initializing OCR...");
+                    
+                    try {
+                        await initOcr();
+                        ocrBtn.textContent = "OCR: ON";
+                        ocrBtn.style.color = "var(--success, #4ade80)";
+                        console.log("[App] OCR initialized successfully");
+                        
+                        if (pages.length > 0) {
+                            await loadPage(currentIndex);
+                        }
+                    } catch (err) {
+                        console.error("[App] Failed to init OCR:", err);
+                        ocrBtn.textContent = "OCR: Error";
+                        ocrBtn.style.color = "var(--error, #ef4444)";
+                    } finally {
+                        ocrBtn.disabled = false;
+                        ocrBtn.style.opacity = "1";
+                    }
+                } else {
+                    ocrEnabled = !ocrEnabled;
+                    ocrBtn.textContent = ocrEnabled ? "OCR: ON" : "OCR: OFF";
+                    ocrBtn.style.color = ocrEnabled ? "var(--success, #4ade80)" : "var(--fg, #e8e8e8)";
+                    console.log("[App] OCR toggled:", ocrEnabled);
+                    
+                    if (pages.length > 0) {
+                        await loadPage(currentIndex);
+                    }
+                }
+            });
 
-            window.demoOverlay = () => {
-                viewer.clearOverlays();
-                viewer.addOverlay(200, 300, 200, 50, "辞書", {
-                    type: "highlight",
-                });
-                viewer.addOverlay(400, 600, 100, 40, "NEW", { type: "badge" });
-                viewer.addOverlay(100, 800, 150, 60, "Translation here", {
-                    type: "tooltip",
-                });
-            };
-
-            setTimeout(startDemo, 500);
+            window.initOcr = initOcr;
+            window.loadPage = loadPage;
         </script>
     </body>
 </html>

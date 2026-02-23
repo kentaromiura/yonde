@@ -79,6 +79,35 @@ class ReaderViewer extends HTMLElement {
           border: 2px solid var(--accent, #4a9eff);
           border-radius: var(--radius-sm, 4px);
         }
+        .overlay.type-ocr {
+          background: rgba(74, 158, 255, 0.2);
+          border: 1px solid rgba(74, 158, 255, 0.5);
+          border-radius: var(--radius-sm, 4px);
+          cursor: pointer;
+          transition: background 150ms ease;
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+          overflow: hidden;
+        }
+        .overlay.type-ocr:hover {
+          background: rgba(74, 158, 255, 0.35);
+        }
+        .overlay.type-ocr .ocr-text {
+          background: rgba(0, 0, 0, 0.7);
+          color: var(--fg, #e8e8e8);
+          padding: 2px 4px;
+          font-size: 10px;
+          line-height: 1.2;
+          white-space: pre-wrap;
+          word-break: break-all;
+          max-width: 100%;
+          max-height: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          user-select: text;
+          cursor: text;
+        }
         .overlay.type-badge {
           background: var(--accent, #4a9eff);
           color: var(--bg, #1a1a1a);
@@ -165,7 +194,15 @@ class ReaderViewer extends HTMLElement {
   addOverlay(x, y, width, height, content, options = {}) {
     const overlay = document.createElement('div');
     overlay.className = `overlay type-${options.type || 'highlight'}`;
-    overlay.textContent = content || '';
+    
+    if (options.type === 'ocr' && content) {
+      const textEl = document.createElement('span');
+      textEl.className = 'ocr-text';
+      textEl.textContent = content;
+      overlay.appendChild(textEl);
+    } else {
+      overlay.textContent = content || '';
+    }
     
     const data = { element: overlay, x, y, width, height, options };
     this._overlays.push(data);

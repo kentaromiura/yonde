@@ -26,3 +26,8 @@ rusqlite = { version = "0.31", features = ["bundled", "blob"] }
 zstd = "0.13.2"
 rodio = "0.14.0"
 magnum = { version = "1.0.1", features = ["with_rodio"] }
+cbz = { path = "../cbz" }
+comic-ocr = { path = "../comic-ocr" }
+base64 = "0.22"
+tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
+image = "0.24"

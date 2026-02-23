@@ -430,7 +430,7 @@ const colorize = (text) =>
     // for now let's open in the default browser.
     .replace(/<a\ /g, '<a target="_blank"');
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("_DOMContentLoaded", () => {
   const container = document.querySelector("#container");
   getContent()
     .then((content) => {
