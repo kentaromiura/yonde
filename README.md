@@ -1,4 +1,7 @@
-##
+## Yonde
+
+![Demo movie](screenshot/output.webp)
+
 Known bugs:
 - theme is not applied to dictionary and OCR text.
 - On change fit mode OCR text is not resized
