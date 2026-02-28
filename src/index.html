@@ -215,6 +215,30 @@
         <script src="components/theme-picker.js" type="module"></script>
         <script src="components/reader-container.js" type="module"></script>
         <!-- UI -->
+        <script>
+            // https://github.com/kentaromiura/withCSSVar
+            const withCSSVar = (selector = "html") => {
+                const root = document.querySelector(selector);
+                const descriptor = {
+                    get(target, prop) {
+                        return getComputedStyle(target).getPropertyValue(
+                            `--${prop.replace(/[A-Z]/g, (a) => "-" + a.toLowerCase())}`,
+                        );
+                    },
+                    set(target, prop, value) {
+                        target.style.setProperty(
+                            `--${prop.replace(/[A-Z]/g, (a) => "-" + a.toLowerCase())}`,
+                            value,
+                        );
+                        return this;
+                    },
+                };
+
+                return new Proxy(root, descriptor);
+            };
+
+            globalThis.withCSSVar = withCSSVar;
+        </script>
         <script type="module" src="/main.js" defer></script>
         <style data-id="common">
             @font-face {
@@ -816,6 +840,22 @@
             let currentIndex = 0;
             let ocrEnabled = false;
             let ocrInitialized = false;
+            let ocrCache = {};
+
+            async function getPageWithOcr({ path, pageName }) {
+                const cachePath = `${path}:${pageName}`;
+                if (ocrCache[cachePath]) {
+                    console.log("returned from cache");
+                    return ocrCache[cachePath];
+                }
+                console.log("get_page_with_ocr rust call.");
+                const result = await invoke("get_page_with_ocr", {
+                    path,
+                    pageName,
+                });
+                ocrCache[cachePath] = result;
+                return result;
+            }
 
             async function openCbz(path) {
                 console.log("[App] openCbz called with path:", path);
@@ -841,18 +881,31 @@
                     console.log("[App] Index out of bounds");
                     return;
                 }
-
+                let indexPageNext = index + 1;
+                if (indexPageNext >= pages.length) {
+                    indexPageNext = index;
+                }
                 currentIndex = index;
                 const pageName = pages[index];
+                const pageNameNext = pages[indexPageNext];
                 console.log("[App] Loading page:", pageName);
 
                 try {
                     let result;
                     if (ocrEnabled && ocrInitialized) {
                         console.log("[App] Fetching page with OCR...");
-                        result = await invoke("get_page_with_ocr", {
+                        // result = await invoke("get_page_with_ocr", {
+                        //     path: currentPath,
+                        //     pageName,
+                        // });
+                        result = await getPageWithOcr({
                             path: currentPath,
                             pageName,
+                        });
+                        // pre-cache next page.
+                        getPageWithOcr({
+                            path: currentPath,
+                            pageName: pageNameNext,
                         });
                     } else {
                         console.log("[App] Fetching page without OCR...");
@@ -874,12 +927,23 @@
 
                     viewer.clearOverlays();
                     if (result.ocr_results && result.ocr_results.length > 0) {
-                        console.log("[App] Adding", result.ocr_results.length, "OCR overlays");
+                        console.log(
+                            "[App] Adding",
+                            result.ocr_results.length,
+                            "OCR overlays",
+                        );
                         for (const ocr of result.ocr_results) {
                             const [x1, y1, x2, y2] = ocr.bbox;
-                            viewer.addOverlay(x1, y1, x2 - x1, y2 - y1, ocr.text, {
-                                type: "ocr",
-                            });
+                            viewer.addOverlay(
+                                x1,
+                                y1,
+                                x2 - x1,
+                                y2 - y1,
+                                ocr.text,
+                                {
+                                    type: "ocr",
+                                },
+                            );
                         }
                     } else if (ocrEnabled && ocrInitialized) {
                         console.log("[App] No OCR results found");
@@ -896,7 +960,10 @@
             }
 
             async function initOcr() {
-                console.log("[App] initOcr called, ocrInitialized:", ocrInitialized);
+                console.log(
+                    "[App] initOcr called, ocrInitialized:",
+                    ocrInitialized,
+                );
                 if (ocrInitialized) return;
                 try {
                     console.log("[App] Invoking init_ocr...");
@@ -937,23 +1004,24 @@
                     viewer.fitMode = btn.dataset.fit;
                 });
             });
-            
+
             const ocrBtn = document.getElementById("ocrBtn");
-            ocrBtn.style.cssText = "padding: 0.4em 0.8em; border-radius: 6px; border: 1px solid var(--border, #3a3a3a); background: var(--bg-elevated, #252525); color: var(--fg, #e8e8e8); cursor: pointer;";
-            
+            ocrBtn.style.cssText =
+                "padding: 0.4em 0.8em; border-radius: 6px; border: 1px solid var(--border, #3a3a3a); background: var(--bg-elevated, #252525); color: var(--fg, #e8e8e8); cursor: pointer;";
+
             ocrBtn.addEventListener("click", async () => {
                 if (!ocrInitialized) {
                     ocrBtn.disabled = true;
                     ocrBtn.textContent = "Loading...";
                     ocrBtn.style.opacity = "0.6";
                     console.log("[App] Initializing OCR...");
-                    
+
                     try {
                         await initOcr();
                         ocrBtn.textContent = "OCR: ON";
                         ocrBtn.style.color = "var(--success, #4ade80)";
                         console.log("[App] OCR initialized successfully");
-                        
+
                         if (pages.length > 0) {
                             await loadPage(currentIndex);
                         }
@@ -968,9 +1036,11 @@
                 } else {
                     ocrEnabled = !ocrEnabled;
                     ocrBtn.textContent = ocrEnabled ? "OCR: ON" : "OCR: OFF";
-                    ocrBtn.style.color = ocrEnabled ? "var(--success, #4ade80)" : "var(--fg, #e8e8e8)";
+                    ocrBtn.style.color = ocrEnabled
+                        ? "var(--success, #4ade80)"
+                        : "var(--fg, #e8e8e8)";
                     console.log("[App] OCR toggled:", ocrEnabled);
-                    
+
                     if (pages.length > 0) {
                         await loadPage(currentIndex);
                     }

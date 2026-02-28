@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "mokuro-app",
+  "productName": "yonde",
   "version": "0.0.1",
-  "identifier": "com.mokuro-app.app",
+  "identifier": "com.yonde.app",
   "build": {
     "frontendDist": "../src"
   },
@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Mokuro app",
+        "title": "Yonde!",
         "width": 800,
         "height": 600,
         "dragDropEnabled": true

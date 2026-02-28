@@ -86,11 +86,33 @@ class ReaderDropzone extends HTMLElement {
 
     console.log("[ReaderDropzone] Setting up Tauri drop handler");
 
-    const { getCurrentWebview } = window.__TAURI__.webview;
     const { getCurrentWindow } = window.__TAURI__.window;
-    const webview = getCurrentWebview();
-    const unlisten = await getCurrentWindow().onDragDropEvent((event) => {
-      //const unlisten = await webview.onDragDropEvent((event) => {
+
+    this._unlisten = await getCurrentWindow().onDragDropEvent((event) => {
+      const dropzoneContainer = document.getElementById("dropzoneContainer");
+      const isDropzoneVisible =
+        dropzoneContainer && dropzoneContainer.classList.contains("visible");
+      const paths = event.payload.paths;
+      const hasFilePaths = paths && paths.length > 0;
+
+      // Only handle file drag events when dropzone is visible
+      // Let internal HTML5 drags (like MiniYT) pass through when dropzone is hidden
+      if (!isDropzoneVisible) {
+        console.log("[ReaderDropzone] Dropzone not visible, ignoring event");
+        document.documentElement.dispatchEvent(
+          new CustomEvent("draggers", {
+            detail: event,
+          }),
+        );
+        return;
+      }
+
+      // If no file paths, this is likely an internal HTML5 drag - ignore it
+      if (!hasFilePaths) {
+        console.log("[ReaderDropzone] No file paths, ignoring internal drag");
+        return;
+      }
+
       console.log(
         "[ReaderDropzone] DragDrop event:",
         event.payload.type,
@@ -98,37 +120,30 @@ class ReaderDropzone extends HTMLElement {
       );
 
       if (event.payload.type === "enter") {
-        this._isOverDropzone = true;
-        this.setAttribute("dragging", "");
-        console.log("[ReaderDropzone] Drag enter, paths:", event.payload.paths);
+        const path = paths[0];
+        if (path.endsWith(".cbz") || path.endsWith(".zip")) {
+          this._isOverDropzone = true;
+          this.setAttribute("dragging", "");
+        }
       } else if (event.payload.type === "leave") {
         this._isOverDropzone = false;
         this.removeAttribute("dragging");
-        console.log("[ReaderDropzone] Drag leave");
       } else if (event.payload.type === "drop") {
         this.removeAttribute("dragging");
-        const paths = event.payload.paths;
-        console.log("[ReaderDropzone] Drop event, paths:", paths);
-        if (paths && paths.length > 0) {
-          const path = paths[0];
-          console.log("[ReaderDropzone] First path:", path);
-          if (path.endsWith(".cbz") || path.endsWith(".zip")) {
-            console.log(
-              "[ReaderDropzone] Dispatching file-selected for:",
-              path,
-            );
-            this._handleFilePath(path);
-          } else {
-            console.log("[ReaderDropzone] File is not cbz/zip");
-          }
+        const path = paths[0];
+        console.log("[ReaderDropzone] Drop event, path:", path);
+        if (path.endsWith(".cbz") || path.endsWith(".zip")) {
+          console.log("[ReaderDropzone] Dispatching file-selected for:", path);
+          this._handleFilePath(path);
+        } else {
+          console.log("[ReaderDropzone] File is not cbz/zip");
         }
       } else if (event.payload.type === "over") {
-        console.log("[ReaderDropzone] Drag over at:", event.payload.position);
+        // Just a position update, no action needed
       }
     });
 
     console.log("[ReaderDropzone] Drop handler registered");
-    this._unlisten = unlisten;
   }
 
   _handleFilePath(path) {

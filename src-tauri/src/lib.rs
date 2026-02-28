@@ -2,11 +2,11 @@ use magnum::container::ogg::OpusSourceOgg;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{
-    menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu},
     Emitter, Manager, State,
+    menu::{Menu, MenuItemBuilder, PredefinedMenuItem, Submenu},
 };
 
-use rusqlite::{named_params, Connection};
+use rusqlite::{Connection, named_params};
 use std::fs::File;
 use std::io::Cursor;
 use std::num::ParseIntError;
@@ -191,10 +191,19 @@ fn get_content(handle: tauri::AppHandle) -> String {
 }
 
 #[tauri::command]
-async fn open_cbz(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<Vec<String>, String> {
+async fn open_cbz(state: State<'_, AppState>, path: String) -> Result<Vec<String>, String> {
+    let id = path.clone();
+    {
+        let archives = state.archives.lock().unwrap();
+
+        // check cache.
+        if archives.contains_key(&id) {
+            let archive = archives.get(&id).ok_or("Archive not opened")?;
+            let pages = archive.image_names();
+            return Ok(pages);
+        }
+    }
+
     println!("[Rust] open_cbz called with path: {}", path);
     let data = tokio::fs::read(&path).await.map_err(|e| {
         let err = format!("Failed to read file: {}", e);
@@ -202,7 +211,7 @@ async fn open_cbz(
         err
     })?;
     println!("[Rust] Read {} bytes", data.len());
-    
+
     let archive = CbzArchive::from_bytes(data).map_err(|e| {
         let err = format!("Failed to parse CBZ: {}", e);
         println!("[Rust] Error: {}", err);
@@ -210,20 +219,16 @@ async fn open_cbz(
     })?;
     let pages = archive.image_names();
     println!("[Rust] Found {} pages", pages.len());
-    
-    let id = path.clone();
-    
+
+    //let mut archives = state.archives.lock().unwrap();
     let mut archives = state.archives.lock().unwrap();
     archives.insert(id, archive);
-    
+
     Ok(pages)
 }
 
 #[tauri::command]
-fn close_cbz(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<(), String> {
+fn close_cbz(state: State<'_, AppState>, path: String) -> Result<(), String> {
     let mut archives = state.archives.lock().unwrap();
     archives.remove(&path);
     Ok(())
@@ -246,17 +251,21 @@ fn get_page(
     println!("[Rust] get_page called: {} / {}", path, page_name);
     let mut archives = state.archives.lock().unwrap();
     let archive = archives.get_mut(&path).ok_or("Archive not opened")?;
-    
+
     let image = archive.read_image(&page_name).map_err(|e| e.to_string())?;
     let mime_type = image.mime_type().to_string();
-    println!("[Rust] Image mime_type: {}, size: {} bytes", mime_type, image.data.len());
-    
+    println!(
+        "[Rust] Image mime_type: {}, size: {} bytes",
+        mime_type,
+        image.data.len()
+    );
+
     let img = image::load_from_memory(&image.data).map_err(|e| e.to_string())?;
     let (width, height) = (img.width(), img.height());
     println!("[Rust] Image dimensions: {}x{}", width, height);
-    
+
     let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &image.data);
-    
+
     Ok(PageResult {
         image: encoded,
         mime_type,
@@ -293,19 +302,20 @@ async fn get_page_with_ocr(
         let archive = archives.get_mut(&path).ok_or("Archive not opened")?;
         archive.read_image(&page_name).map_err(|e| e.to_string())?
     };
-    
+
     let mime_type = image_data.mime_type().to_string();
     let img = image::load_from_memory(&image_data.data).map_err(|e| e.to_string())?;
     let (width, height) = (img.width(), img.height());
     println!("[Rust] Image: {}x{}", width, height);
-    
-    let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &image_data.data);
-    
+
+    let encoded =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &image_data.data);
+
     // Clone Arc references for the thread
     let detector_arc = state.detector.clone();
     let ocr_arc = state.ocr.clone();
     let img_bytes = image_data.data.clone();
-    
+
     // Check if OCR is initialized
     {
         let det_guard = detector_arc.lock().unwrap();
@@ -321,16 +331,16 @@ async fn get_page_with_ocr(
             });
         }
     }
-    
+
     // Run OCR in a thread with larger stack
     let ocr_results = std::thread::Builder::new()
         .stack_size(4 * 1024 * 1024) // 4MB stack for inference
         .spawn(move || {
             let mut img = image::load_from_memory(&img_bytes).unwrap();
-            
+
             let det_guard = detector_arc.lock().unwrap();
             let ocr_guard = ocr_arc.lock().unwrap();
-            
+
             if let (Some(detector), Some(ocr)) = (det_guard.as_ref(), ocr_guard.as_ref()) {
                 println!("[Rust] Running text detection...");
                 match detector.inference(&img) {
@@ -344,11 +354,14 @@ async fn get_page_with_ocr(
                                 (bbox.xmax - bbox.xmin) as u32,
                                 (bbox.ymax - bbox.ymin) as u32,
                             );
-                            
+
                             if let Ok(texts) = ocr.inference(&[crop]) {
                                 if let Some(text) = texts.first() {
                                     if !text.is_empty() {
-                                        println!("[Rust] OCR text: {} (confidence: {:.2})", text, bbox.confidence);
+                                        println!(
+                                            "[Rust] OCR text: {} (confidence: {:.2})",
+                                            text, bbox.confidence
+                                        );
                                         results.push(OcrResult {
                                             text: text.clone(),
                                             bbox: (bbox.xmin, bbox.ymin, bbox.xmax, bbox.ymax),
@@ -372,7 +385,7 @@ async fn get_page_with_ocr(
         .map_err(|e| format!("Failed to spawn thread: {}", e))?
         .join()
         .map_err(|_| "Thread panicked".to_string())?;
-    
+
     println!("[Rust] Returning {} OCR results", ocr_results.len());
     Ok(PageWithOcrResult {
         image: encoded,
@@ -393,7 +406,7 @@ async fn init_ocr(state: State<'_, AppState>) -> Result<(), String> {
             return Ok(());
         }
     }
-    
+
     let detector = std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024) // 8MB stack
         .spawn(|| {
@@ -415,7 +428,7 @@ async fn init_ocr(state: State<'_, AppState>) -> Result<(), String> {
             err
         })?;
     println!("[Rust] Detector loaded");
-    
+
     let ocr = std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024) // 8MB stack
         .spawn(|| {
@@ -424,9 +437,7 @@ async fn init_ocr(state: State<'_, AppState>) -> Result<(), String> {
                 .enable_all()
                 .build()
                 .unwrap();
-            rt.block_on(async {
-                comic_ocr::manga_ocr::MangaOcr::load(false).await
-            })
+            rt.block_on(async { comic_ocr::manga_ocr::MangaOcr::load(false).await })
         })
         .map_err(|e| format!("Failed to spawn thread: {}", e))?
         .join()
@@ -437,17 +448,17 @@ async fn init_ocr(state: State<'_, AppState>) -> Result<(), String> {
             err
         })?;
     println!("[Rust] OCR loaded");
-    
+
     {
         let mut det_guard = state.detector.lock().unwrap();
         *det_guard = Some(detector);
     }
-    
+
     {
         let mut ocr_guard = state.ocr.lock().unwrap();
         *ocr_guard = Some(ocr);
     }
-    
+
     Ok(())
 }
 
@@ -455,13 +466,13 @@ async fn init_ocr(state: State<'_, AppState>) -> Result<(), String> {
 pub fn run() {
     let detector = Arc::new(Mutex::new(None));
     let ocr = Arc::new(Mutex::new(None));
-    
+
     let state = AppState {
         archives: Mutex::new(HashMap::new()),
         ocr: ocr.clone(),
         detector: detector.clone(),
     };
-    
+
     tauri::Builder::default()
         .manage(state)
         .menu(|handle| {
@@ -474,13 +485,15 @@ pub fn run() {
                     &[
                         &PredefinedMenuItem::close_window(handle, None)?,
                         #[cfg(target_os = "macos")]
-                        &MenuItemBuilder::new(MENU_EVENT_LOOKUP).id("lookup").build(handle)?,
+                        &MenuItemBuilder::new(MENU_EVENT_LOOKUP)
+                            .id("lookup")
+                            .build(handle)?,
                     ],
                 )?],
             )
         })
         .on_menu_event(|app, event| match event.id().as_ref() {
-            MENU_EVENT_LOOKUP=> {
+            MENU_EVENT_LOOKUP => {
                 let _ = app.emit(MENU_EVENT_LOOKUP, ());
             }
             _ => {

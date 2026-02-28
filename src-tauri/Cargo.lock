@@ -3820,26 +3820,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mokuro-app"
-version = "0.0.1"
-dependencies = [
- "base64 0.22.1",
- "cbz",
- "comic-ocr",
- "image",
- "magnum",
- "rodio",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-opener",
- "tokio",
- "zstd",
-]
-
-[[package]]
 name = "monostate"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7999,6 +7979,26 @@ dependencies = [
  "quote",
  "syn 2.0.114",
  "synstructure",
+]
+
+[[package]]
+name = "yonde"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "cbz",
+ "comic-ocr",
+ "image",
+ "magnum",
+ "rodio",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tokio",
+ "zstd",
 ]
 
 [[package]]

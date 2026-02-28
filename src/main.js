@@ -45,9 +45,11 @@ async function queryById(id) {
 }
 
 async function query(word) {
+  //if (typeof word === "string")
   return await invoke("definition", {
     word,
   });
+  //return Promise.reject("");
 }
 
 async function playAudio(audioId) {
@@ -154,7 +156,8 @@ function getWordAtPoint(elem, x, y, notExpand) {
       }
     }
   }
-  return null;
+  return "";
+  //return null;
 }
 
 class MiniYT extends HTMLElement {
@@ -188,16 +191,38 @@ class MiniYT extends HTMLElement {
       })
       .replace(/<a /, '<a target="_blank"');
   };
+  _getElementFromPoint(x, y) {
+    let el = document.elementFromPoint(x, y);
+    while (el && el.shadowRoot) {
+      const shadowEl = el.shadowRoot.elementFromPoint(x, y);
+      if (!shadowEl || shadowEl === el) break;
+      el = shadowEl;
+    }
+    return el;
+  }
+
   _onmousemove = (e) => {
     if (e.shiftKey) {
-      let word = getWordAtPoint(e.target, e.x, e.y);
-      word = word || getWordAtPoint(e.target, e.x, e.y, true);
+      withCSSVar().shiftVisibility = "visible";
+      const target = this._getElementFromPoint(e.x, e.y) || e.target;
+      console.log(
+        "mouse move inside MiniYT, target:",
+        target,
+        "tagName:",
+        target?.tagName,
+        "text:",
+        target?.textContent?.substring(0, 20),
+      );
+      let word = getWordAtPoint(target, e.x, e.y);
+      word = word || getWordAtPoint(target, e.x, e.y, true);
       if (word) {
-        this._search(word, e.y, e.x);
+        this._search(word, e.y, e.x, e);
       }
+    } else {
+      withCSSVar().shiftVisibility = "hidden";
     }
   };
-  _search(word, y, x) {
+  _search(word, y, x, e) {
     query(word).then((res) => {
       if (res != "not found") {
         this._el.classList.add("nicebg");
@@ -211,18 +236,20 @@ class MiniYT extends HTMLElement {
         this._el.style.left = x + "px";
         this._el.style.display = "block";
       } else {
-        query(getWordAtPoint(e.target, e.x, e.y, true)).then((res) => {
-          if (res === "not found") return;
-          this._el.removeChild(this._elClose);
-          this._el.removeChild(this._elZoom);
-          this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
-          this._el.insertBefore(this._elClose, this._el.firstChild);
-          this._el.insertBefore(this._elZoom, this._el.firstChild);
-
-          this._el.style.top = y + "px";
-          this._el.style.left = x + "px";
-          this._el.style.display = "block";
-        });
+        if (e) {
+          query(getWordAtPoint(e.target, e.x, e.y, true)).then((res) => {
+            if (res === "not found") return;
+            this._el.removeChild(this._elClose);
+            this._el.removeChild(this._elZoom);
+            this._el.innerHTML = `<div style="padding: 1em; background-color: rgba(255,255,255,0.955)">${this._cleanup(res)}</div>`;
+            this._el.insertBefore(this._elClose, this._el.firstChild);
+            this._el.insertBefore(this._elZoom, this._el.firstChild);
+            this._el.style.top = y + "px";
+            this._el.style.left = x + "px";
+            this._el.style.display = "block";
+          });
+        }
+        // e.target don't exist here
       }
     });
   }
@@ -237,10 +264,16 @@ class MiniYT extends HTMLElement {
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
       e.dataTransfer.setDragImage(img, 0, 0);
     };
-    this._el.ondrag = (e) => {
-      this._el.style.top = -40 + e.pageY + "px";
-      this._el.style.left = -40 + e.pageX + "px";
-    };
+    document.documentElement.addEventListener("draggers", (e) => {
+      console.log("draggerrs", e);
+      this._el.style.top = -40 + e.detail.payload.position.y + "px";
+      this._el.style.left = -40 + e.detail.payload.position.x + "px";
+    });
+    // this._el.ondrag = (e) => {
+    //   console.log("ondrag", e);
+    //   this._el.style.top = -40 + e.pageY + "px";
+    //   this._el.style.left = -40 + e.pageX + "px";
+    // };
     this._el.onclick = (e) => {
       if (e.target.tagName && e.target.tagName !== "A") {
         let node = this._parentALink(e.target);
@@ -429,7 +462,7 @@ const colorize = (text) =>
     )
     // for now let's open in the default browser.
     .replace(/<a\ /g, '<a target="_blank"');
-
+window.colorize = colorize;
 window.addEventListener("_DOMContentLoaded", () => {
   const container = document.querySelector("#container");
   getContent()

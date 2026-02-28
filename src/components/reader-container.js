@@ -9,6 +9,7 @@ class ReaderContainer extends HTMLElement {
     this._currentIndex = 0;
     this._ocrEnabled = false;
     this._ocrInitialized = false;
+    this._ocrCache = {};
   }
 
   connectedCallback() {
@@ -119,6 +120,17 @@ class ReaderContainer extends HTMLElement {
     }
   }
 
+  async getPageWithOcr({ path, pageName }) {
+    const cachePath = `${path}:${pageName}`;
+    if (this._ocrCache[cachePath]) return this._ocrCache[cachePath];
+    const result = await invoke("get_page_with_ocr", {
+      path,
+      pageName,
+    });
+    this._ocrCache[cachePath] = result;
+    return result;
+  }
+
   async _loadPage(index) {
     if (index < 0 || index >= this._pages.length) return;
 
@@ -129,10 +141,15 @@ class ReaderContainer extends HTMLElement {
       const pageName = this._pages[index];
 
       if (this._ocrEnabled && this._ocrInitialized) {
-        const result = await invoke("get_page_with_ocr", {
+        const result = await getPageWithOcr({
           path: this._currentPath,
           pageName,
         });
+
+        //   await invoke("get_page_with_ocr", {
+        //   path: this._currentPath,
+        //   pageName,
+        // });
 
         const dataUrl = `data:${result.mime_type};base64,${result.image}`;
         this._viewer.setImage(dataUrl, result.width, result.height);

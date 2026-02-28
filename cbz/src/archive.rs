@@ -191,8 +191,8 @@ impl<R: Read + io::Seek> Iterator for ImageStream<R> {
 mod tests {
     use super::*;
     use std::io::Write;
-    use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
 
     fn create_test_cbz() -> Vec<u8> {
         let mut buffer = Vec::new();
